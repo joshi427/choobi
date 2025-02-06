@@ -1,5 +1,12 @@
-from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, select
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from backend.routers import auth, images, interactions, rankings
+from backend.routers import user
+
+from backend.database import *
 
 
 class Item(SQLModel, table=True):
@@ -8,19 +15,24 @@ class Item(SQLModel, table=True):
     elo: int = 1000
 
 
-# Database setup
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
-
-connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, echo=True, connect_args=connect_args)
-
-
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-
 app = FastAPI()
+
+origins = [
+    "http://localhost:5173"
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(rankings.router, prefix="/rankings", tags=["rankings"])
+app.include_router(images.router, prefix="/images", tags=["images"])
+app.include_router(interactions.router, prefix="/interactions", tags=["interactions"])
+app.include_router(user.router)
+app.include_router(auth.router, prefix="/auth")
 
 
 @app.on_event("startup")
@@ -48,3 +60,7 @@ def read_items():
     with Session(engine) as session:
         items = session.exec(select(Item)).all()
         return items
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
